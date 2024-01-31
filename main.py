@@ -4,12 +4,12 @@ from naoqi import ALProxy
 import os
 import time
 import threading
-from pydub import AudioSegment
 import speech_recognition as sr
 import json
 import requests
-
-class HeadButtonExample:
+import time
+import langid
+class Main:
     def __init__(self, session, audio_proxy):
         self.session = session
         self.memory = self.session.service("ALMemory")
@@ -19,7 +19,7 @@ class HeadButtonExample:
         self.recording = False
         self.robot_ip = "192.168.5.30"  
         self.robot_audio_directory = "/home/nao/recordings/"
-        self.local_audio_directory = "ENTER HERE"
+        self.local_audio_directory = "/home/cc-admin/Documents/naorecordings/"
         self.scp_password = "nao"
 
         self.subscriber = self.memory.subscriber("FrontTactilTouched")
@@ -32,11 +32,11 @@ class HeadButtonExample:
             audio = r.record(source)
 
         try:
-            openai_api_key = 'ENTER HERE'
+            openai_api_key = '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'
             transcribe = r.recognize(audio)
             print("User's input:", transcribe)
 
-            weather_api_key = 'ENTER HERE'
+            weather_api_key = '545a9518e75a51e99cf13bcdccdf46ae'
             weather_url = 'http://api.openweathermap.org/data/2.5/weather?q=Amsterdam&units=metric&appid={}'.format(weather_api_key)
             response = requests.get(weather_url)
             weather_data = response.json()
@@ -46,11 +46,12 @@ class HeadButtonExample:
             wind_speed = weather_data['wind']['speed']
 
             rain_info = weather_data.get('rain', {}).get('1h', 0)
-
+            t = time.localtime()
+            current_time = time.strftime("%H:%M", t)
             system_message = "The weather in Amsterdam is currently {} with a temperature of {} degrees Celsius. " \
                             "The humidity is {}%, and the wind speed is {} m/s. There is {} mm of rain in the last hour. " \
-                            "You are a robot named Poly. You are helpful and like to joke around.".format(
-                                description, temperature, humidity, wind_speed, rain_info)
+                            "You are a robot named Poly, when you give numbers or percentages you round them off. you have 3 fingers on each hand and wear a colourful dress. Do not mention the weather unless you are asked to. You are helpful and like to joke around. give nice and clear answers. the time right now is {}. If you are asked to speak in a language you will and you wont reply with any other language.".format(
+                                description, temperature, humidity, wind_speed, rain_info, current_time)
 
             print(system_message)
             curl_command = [
@@ -67,6 +68,14 @@ class HeadButtonExample:
                 })
             ]
 
+            detected_language = langid.classify(transcribe)
+            print()
+            language = "English"
+
+            if detected_language == "nl":
+                language = "Dutch"
+
+            self.tts.setLanguage(language)
             process = subprocess.Popen(curl_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             output, error = process.communicate()
 
@@ -84,6 +93,7 @@ class HeadButtonExample:
             
         except sr.UnknownValueError:
             print("Could not understand audio")
+            self.tts.say("Im sorry but i did not understand. Please try again!")
             return None
         except sr.RequestError as e:
             print("Error with the recognition service; {}".format(e))
@@ -121,12 +131,12 @@ class HeadButtonExample:
 
     def process_audio(self):
         with self.lock:
-
             self.transfer_audio_file(self.robot_audio_directory + "test.ogg")
 
             wav_file_path = os.path.join(self.local_audio_directory, "cv_test.wav")
-            transcription = self.perform_speech_recognition(wav_file_path)
-            print("Transcription:", transcription)
+
+
+            threading.Thread(target=self.perform_speech_recognition, args=(wav_file_path,)).start()
 
             threading.Thread(target=self.convert_audio_file, args=(wav_file_path,)).start()
 
@@ -159,11 +169,11 @@ class HeadButtonExample:
 if __name__ == "__main__":
     app = qi.Application()
     session = app.session
-    session.connect("tcp://YOUR IP:9559")
+    session.connect("tcp://192.168.5.30:9559")
 
-    audio_proxy = ALProxy("ALAudioDevice", "YOUR IP", 9559)  
+    audio_proxy = ALProxy("ALAudioDevice", "192.168.5.30", 9559)  
 
-    head_button_example = HeadButtonExample(session, audio_proxy)
+    head_button_example = Main(session, audio_proxy)
 
     try:
         app.run()

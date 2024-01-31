@@ -32,7 +32,7 @@ class Main:
             audio = r.record(source)
 
         try:
-            openai_api_key = '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'
+            openai_api_key = ''
             transcribe = r.recognize(audio)
             print("User's input:", transcribe)
 
